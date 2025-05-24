@@ -10,6 +10,7 @@ class NumberPrinter:
         self.logger = self.setup_logging()
         self.active = False
         self.current_node = None
+        self.current_node_time = 0
         self.sequence = []
         self.thread = None
         self.lock = threading.Lock()
@@ -27,13 +28,14 @@ class NumberPrinter:
             logger.addHandler(logging.StreamHandler())
         return logger
 
-    def start_sequence(self, node_id, start_value):
+    def start_sequence(self, node_id, start_value, node_timestamp):
         with self.lock:
             if self.active:
                 self.logger.warning("Number printer already active.")
                 return f"STARTED:{start_value}"
             self.active = True
             self.current_node = node_id
+            self.current_node_time = node_timestamp
             k = random.randint(1, 10)
             self.sequence = list(range(start_value + 1, start_value + 1 + k))
             self.thread = threading.Thread(target=self.print_numbers)
@@ -45,8 +47,7 @@ class NumberPrinter:
             with self.lock:
                 if not self.active:
                     break
-                timestamp = int(time.time())
-                self.logger.info(f"Node {self.current_node} | {timestamp} >> {num}")
+                self.logger.info(f"Node {self.current_node} >> {num} | {num - self.current_node_time} ({self.current_node_time})")
             time.sleep(0.5)
 
         with self.lock:
@@ -64,8 +65,14 @@ class NumberPrinter:
             try:
                 data = conn.recv(1024).decode().strip()
                 if data.startswith("START:"):
-                    _, node_id, start_val = data.split(":")
-                    response = self.start_sequence(node_id, int(start_val))
+                    parts = data.split(":")
+                    if len(parts) == 4:
+                        _, node_id, _, node_timestamp = parts
+                        response = self.start_sequence(node_id, int(node_timestamp), int(node_timestamp))
+                    else:
+                        _, node_id, _ = parts
+                        now = int(time.time())
+                        response = self.start_sequence(node_id, now, now)
                     conn.sendall(response.encode())
                 elif data == "STOP":
                     self.stop()
