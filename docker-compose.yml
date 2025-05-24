@@ -1,0 +1,76 @@
+
+services:
+  print_server:
+    image: python:3.9-slim
+    command: python print_server.py
+    hostname: print_server
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./:/app
+    working_dir: /app
+
+  node1:
+    image: python:3.9-slim
+    command: python distributed_node.py --id 1 --port 5001
+    hostname: node1
+    volumes:
+      - ./:/app
+    working_dir: /app
+    depends_on:
+      - print_server
+
+  node2:
+    image: python:3.9-slim
+    command: python distributed_node.py --id 2 --port 5002
+    hostname: node2
+    volumes:
+      - ./:/app
+    working_dir: /app
+    depends_on:
+      - print_server
+
+  node3:
+    image: python:3.9-slim
+    command: python distributed_node.py --id 3 --port 5003
+    hostname: node3
+    volumes:
+      - ./:/app
+    working_dir: /app
+    depends_on:
+      - print_server
+
+  node4:
+    image: python:3.9-slim
+    command: python distributed_node.py --id 4 --port 5004
+    hostname: node4
+    volumes:
+      - ./:/app
+    working_dir: /app
+    depends_on:
+      - print_server
+
+  node5:
+    image: python:3.9-slim
+    command: python distributed_node.py --id 5 --port 5005
+    hostname: node5
+    volumes:
+      - ./:/app
+    working_dir: /app
+    depends_on:
+      - print_server
+
+  node6:
+    image: python:3.9-slim
+    command: python distributed_node.py --id 6 --port 5006
+    hostname: node6
+    volumes:
+      - ./:/app
+    working_dir: /app
+    depends_on:
+      - print_server
+
+networks:
+  default:
+    name: dist_sys_net
+    driver: bridge
