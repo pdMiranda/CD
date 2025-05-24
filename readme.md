@@ -1,13 +1,3 @@
-# Construa os containers
-docker-compose build
-
-# Inicie o sistema
-docker-compose up
-
-# Reset
-docker-compose down && docker-compose up --build
-
-
 # Sistema de Exclusão Mútua Distribuído
 
 Este projeto implementa um sistema de exclusão mútua entre múltiplos nós que acessam uma seção crítica (CS) compartilhada, simulada por um servidor de impressão. O controle de acesso é feito via comunicação por sockets usando o algoritmo de Ricart-Agrawala.
