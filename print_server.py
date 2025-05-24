@@ -3,6 +3,7 @@ import threading
 import time
 import logging
 import os
+import random
 
 def setup_logging():
     if not os.path.exists('logs'):
@@ -27,6 +28,24 @@ class PrintServer:
         self.logger = setup_logging()
         self.current_user = None
         self.lock = threading.Lock()
+        self.last_timestamp = 0
+        self.last_printed_number = 0
+        self.numbers_socket_lock = threading.Lock()
+
+    def notify_numbers_service(self, message):
+        with self.numbers_socket_lock:
+            try:
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    s.settimeout(3)
+                    s.connect(("numbers_print", 5001))
+                    s.sendall(message.encode())
+                    if message.startswith("START"):
+                        response = s.recv(1024).decode().strip()
+                        if response.startswith("DONE"):
+                            _, last_num = response.split(":")
+                            self.last_printed_number = int(last_num)
+            except Exception as e:
+                self.logger.error(f"Failed to notify numbers service: {e}")
 
     def handle_client(self, conn, addr):
         with conn:
@@ -46,23 +65,29 @@ class PrintServer:
                         conn.sendall(b"ENTER_OK")
                         self.logger.info(f"ENTER - Node {node_id}")
 
+                        self.notify_numbers_service(f"START:{node_id}:{self.last_printed_number}")
+
                     try:
                         exit_msg = conn.recv(1024).decode().strip()
                         if exit_msg == "EXIT":
                             with self.lock:
                                 self.current_user = None
+                                self.logger.info(f"EXIT - Node {node_id}")
+                                self.notify_numbers_service("STOP")
+                                self.last_timestamp += 10
                             conn.sendall(b"EXIT_OK")
-                            self.logger.info(f"EXIT - Node {node_id}")
                     except socket.timeout:
                         self.logger.error(f"Timeout waiting for EXIT from Node {node_id}")
                         with self.lock:
                             self.current_user = None
+                            self.notify_numbers_service("STOP")
 
             except Exception as e:
                 self.logger.error(f"ERROR - {e}")
                 with self.lock:
                     if self.current_user:
                         self.current_user = None
+                        self.notify_numbers_service("STOP")
 
     def start(self):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:

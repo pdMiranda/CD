@@ -1,83 +1,62 @@
+x-common: &default-config
+  build:
+    context: .
+    dockerfile: Dockerfile
+  user: "1000:1000"
+  volumes:
+    - ./logs:/app/logs
+  depends_on:
+    - print_server
 
 services:
   print_server:
-    image: python:3.9-slim
-    command: python print_server.py
-    hostname: print_server
-    ports:
-      - "5000:5000"
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: print_server
+    command: bash -c "rm -rf logs/* && python3 print_server.py"
+    user: "1000:1000"
     volumes:
-      - ./:/app
       - ./logs:/app/logs
-    working_dir: /app
+    depends_on:
+      - numbers_print
+
+  numbers_print:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: numbers_print
+    command: python3 numbers_print.py
+    user: "1000:1000"
+    volumes:
+      - ./logs:/app/logs
 
   node1:
-    image: python:3.9-slim
-    command: python distributed_node.py --id 1 --port 5001
-    hostname: node1
-    volumes:
-      - ./:/app
-      - ./logs:/app/logs
-    working_dir: /app
-    depends_on:
-      - print_server
+    <<: *default-config
+    container_name: node1
+    command: python3 distributed_node.py --id 1 --port 5001
 
   node2:
-    image: python:3.9-slim
-    command: python distributed_node.py --id 2 --port 5002
-    hostname: node2
-    volumes:
-      - ./:/app
-      - ./logs:/app/logs
-    working_dir: /app
-    depends_on:
-      - print_server
+    <<: *default-config
+    container_name: node2
+    command: python3 distributed_node.py --id 2 --port 5002
 
   node3:
-    image: python:3.9-slim
-    command: python distributed_node.py --id 3 --port 5003
-    hostname: node3
-    volumes:
-      - ./:/app
-      - ./logs:/app/logs
-    working_dir: /app
-    depends_on:
-      - print_server
+    <<: *default-config
+    container_name: node3
+    command: python3 distributed_node.py --id 3 --port 5003
 
   node4:
-    image: python:3.9-slim
-    command: python distributed_node.py --id 4 --port 5004
-    hostname: node4
-    volumes:
-      - ./:/app
-      - ./logs:/app/logs
-    working_dir: /app
-    depends_on:
-      - print_server
+    <<: *default-config
+    container_name: node4
+    command: python3 distributed_node.py --id 4 --port 5004
 
   node5:
-    image: python:3.9-slim
-    command: python distributed_node.py --id 5 --port 5005
-    hostname: node5
-    volumes:
-      - ./:/app
-      - ./logs:/app/logs
-    working_dir: /app
-    depends_on:
-      - print_server
+    <<: *default-config
+    container_name: node5
+    command: python3 distributed_node.py --id 5 --port 5005
 
   node6:
-    image: python:3.9-slim
-    command: python distributed_node.py --id 6 --port 5006
-    hostname: node6
-    volumes:
-      - ./:/app
-      - ./logs:/app/logs
-    working_dir: /app
-    depends_on:
-      - print_server
-
-networks:
-  default:
-    name: dist_sys_net
-    driver: bridge
+    <<: *default-config
+    container_name: node6
+    command: python3 distributed_node.py --id 6 --port 5006
