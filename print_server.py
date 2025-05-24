@@ -1,6 +1,8 @@
 import socket
 import threading
 import logging
+import os
+import glob
 
 class PrintServer:
     def __init__(self, port=5000):
@@ -30,6 +32,30 @@ class PrintServer:
                     self.logger.info(f"Node {data} accessed the shared resource")
             except Exception as e:
                 self.logger.error(f"Error handling client: {e}")
+    
+    def setup_logging(node_id=None):
+        # Criar pasta de logs se não existir
+        if not os.path.exists('logs'):
+            os.makedirs('logs')
+        
+        # Configurar logging
+        logger = logging.getLogger('print_server' if node_id is None else f'node_{node_id}')
+        logger.setLevel(logging.INFO)
+        
+        # Formato do log
+        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+        
+        # Handler para arquivo (um por nó)
+        file_handler = logging.FileHandler(f'logs/{"print_server" if node_id is None else f"node_{node_id}"}.log')
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
+        
+        # Handler para console
+        console_handler = logging.StreamHandler()
+        console_handler.setFormatter(formatter)
+        logger.addHandler(console_handler)
+        
+        return logger
 
 if __name__ == "__main__":
     PrintServer().start()

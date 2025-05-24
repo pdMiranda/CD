@@ -8,6 +8,7 @@ services:
       - "5000:5000"
     volumes:
       - ./:/app
+      - ./logs:/app/logs
     working_dir: /app
 
   node1:
@@ -16,6 +17,7 @@ services:
     hostname: node1
     volumes:
       - ./:/app
+      - ./logs:/app/logs
     working_dir: /app
     depends_on:
       - print_server
@@ -26,6 +28,7 @@ services:
     hostname: node2
     volumes:
       - ./:/app
+      - ./logs:/app/logs
     working_dir: /app
     depends_on:
       - print_server
@@ -36,6 +39,7 @@ services:
     hostname: node3
     volumes:
       - ./:/app
+      - ./logs:/app/logs
     working_dir: /app
     depends_on:
       - print_server
@@ -46,6 +50,7 @@ services:
     hostname: node4
     volumes:
       - ./:/app
+      - ./logs:/app/logs
     working_dir: /app
     depends_on:
       - print_server
@@ -56,6 +61,7 @@ services:
     hostname: node5
     volumes:
       - ./:/app
+      - ./logs:/app/logs
     working_dir: /app
     depends_on:
       - print_server
@@ -66,6 +72,7 @@ services:
     hostname: node6
     volumes:
       - ./:/app
+      - ./logs:/app/logs
     working_dir: /app
     depends_on:
       - print_server
