@@ -13,29 +13,28 @@ def setup_logging(node_id):
     
     logger = logging.getLogger(f'Node{node_id}')
     logger.setLevel(logging.INFO)
-    
-    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-    
-    file_handler = logging.FileHandler(f'logs/node_{node_id}.log')
-    file_handler.setFormatter(formatter)
-    logger.addHandler(file_handler)
-    
-    console_handler = logging.StreamHandler()
-    console_handler.setFormatter(formatter)
-    logger.addHandler(console_handler)
-    
+
+    if not logger.handlers:
+        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+        file_handler = logging.FileHandler(f'logs/node_{node_id}.log')
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
+        console_handler = logging.StreamHandler()
+        console_handler.setFormatter(formatter)
+        logger.addHandler(console_handler)
+
     return logger
 
 class DistributedNode:
-    CS_DURATION = 5  # 5 segundos na seção crítica
-    
+    CS_DURATION = 5
+
     def __init__(self, node_id, port, other_nodes):
         self.node_id = node_id
         self.port = port
         self.other_nodes = other_nodes
         self.logger = setup_logging(node_id)
         self.init_state()
-        self.cs_thread = None # Thread for CS processing
+        self.cs_thread = None
 
     def init_state(self):
         self.clock = 0
@@ -53,16 +52,12 @@ class DistributedNode:
         with socket.socket() as s:
             s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             s.bind(('0.0.0.0', self.port))
-            s.settimeout(1)  # Timeout para não bloquear
+            s.settimeout(1)
             s.listen()
-            
             while self.running:
                 try:
                     conn, addr = s.accept()
-                    threading.Thread(
-                        target=self.handle_connection, 
-                        args=(conn, addr)
-                    ).start()
+                    threading.Thread(target=self.handle_connection, args=(conn, addr)).start()
                 except socket.timeout:
                     continue
                 except Exception as e:
@@ -82,14 +77,17 @@ class DistributedNode:
 
     def handle_request(self, data):
         _, ts, node_id = data.split(',')
+        ts, node_id = int(ts), int(node_id)
         with self.lock:
-            self.update_clock(int(ts))
-            
-            if not self.requesting or self.should_grant(int(ts), int(node_id)):
-                self.send_reply(int(node_id))
+            self.update_clock(ts)
+            self.request_queue.append((ts, node_id))
+            self.request_queue.sort()
+
+            if not self.requesting or self.should_grant(ts, node_id):
+                self.send_reply(node_id)
                 self.logger.info(f"Granted access to Node {node_id}")
             else:
-                self.defer_reply(int(node_id))
+                self.defer_reply(node_id)
                 self.logger.info(f"Deferred Node {node_id}")
 
     def handle_reply(self, data):
@@ -112,18 +110,14 @@ class DistributedNode:
             self.request_queue.append((self.clock, self.node_id))
             self.request_queue.sort()
             self.logger.info(f"Requesting CS with timestamp {self.clock}")
-            
+
             for host, port in self.other_nodes:
-                threading.Thread(
-                    target=self.send_request,
-                    args=(host, port, self.clock),
-                    daemon=True
-                ).start()
+                threading.Thread(target=self.send_request, args=(host, port, self.clock), daemon=True).start()
 
     def send_request(self, host, port, ts):
         try:
             with socket.socket() as s:
-                s.settimeout(1)
+                s.settimeout(2)
                 s.connect((host, port))
                 s.sendall(f"REQUEST,{ts},{self.node_id}".encode())
         except Exception as e:
@@ -138,56 +132,44 @@ class DistributedNode:
                 self.update_clock(ts)
                 self.replies_received += 1
                 self.logger.info(f"Received REPLY from Node {node_id} ({self.replies_received}/{len(self.other_nodes)})")
-                
-                if self.replies_received == len(self.other_nodes):
+                if self.replies_received >= len(self.other_nodes):
                     self.enter_cs()
 
     def enter_cs(self):
         if self.in_cs:
             return
-            
         self.in_cs = True
         self.cs_start_time = time.time()
         self.logger.info("=== ENTERING CRITICAL SECTION ===")
-        
-        # Timeout para garantir que não fique travado
+
         def _cs_watchdog():
-            time.sleep(self.CS_DURATION + 2)  # Tempo extra
+            time.sleep(self.CS_DURATION + 3)
             if self.in_cs:
                 self.logger.warning("CS watchdog triggered - forcing exit")
                 self.exit_cs()
-        
+
         threading.Thread(target=_cs_watchdog, daemon=True).start()
-        
-        self.cs_thread = threading.Thread(
-            target=self._execute_cs,
-            daemon=True
-        )
+
+        self.cs_thread = threading.Thread(target=self._execute_cs, daemon=True)
         self.cs_thread.start()
 
     def _execute_cs(self):
         try:
             with socket.socket() as s:
-                s.settimeout(2)
+                s.settimeout(3)
                 s.connect(('print_server', 5000))
                 s.sendall(f"ENTER:{self.node_id}".encode())
-                
-                response = s.recv(1024).decode()
+                response = s.recv(1024).decode().strip()
                 if response != "ENTER_OK":
                     self.logger.error(f"Server denied access: {response}")
-                    return  # Não prossegue para a CS
-                
+                    return
                 self.logger.info("=== IN CRITICAL SECTION ===")
-                
-                # Temporizador separado para não bloquear
                 start = time.time()
                 while time.time() - start < self.CS_DURATION:
-                    time.sleep(0.1)  # Permite que o nó continue operando
-                    
+                    time.sleep(0.1)
                 s.sendall(b"EXIT")
-                if s.recv(1024).decode() == "EXIT_OK":
+                if s.recv(1024).decode().strip() == "EXIT_OK":
                     self.logger.info("=== EXITING CRITICAL SECTION ===")
-                    
         except Exception as e:
             self.logger.error(f"CS error: {e}")
         finally:
@@ -197,27 +179,23 @@ class DistributedNode:
         with self.lock:
             if not self.in_cs:
                 return
-                
             self.in_cs = False
             self.requesting = False
-            if self.request_queue:
+            if self.request_queue and self.request_queue[0][1] == self.node_id:
                 self.request_queue.pop(0)
-            
             cs_duration = time.time() - self.cs_start_time
             self.logger.info(f"Time spent in CS: {cs_duration:.2f}s")
             self.logger.info("=== LEFT CRITICAL SECTION ===")
-            
             deferred_nodes = self.deferred.copy()
-            self.deferred = []
-            
+            self.deferred.clear()
         for node_id in deferred_nodes:
             self.send_reply(node_id)
 
     def send_reply(self, node_id):
-        host, port = next((h,p) for h,p in self.other_nodes if p == 5001 + node_id - 1)
+        host, port = next((h, p) for h, p in self.other_nodes if p == 5000 + node_id)
         try:
             with socket.socket() as s:
-                s.settimeout(1)
+                s.settimeout(2)
                 s.connect((host, port))
                 s.sendall(f"REPLY,{self.clock},{self.node_id}".encode())
         except Exception as e:
@@ -227,11 +205,16 @@ class DistributedNode:
         self.clock = max(self.clock, received_ts) + 1
 
     def should_grant(self, ts, node_id):
-        return (self.request_queue[0][0] > ts or 
-                (self.request_queue[0][0] == ts and self.request_queue[0][1] > node_id))
+        for t, nid in self.request_queue:
+            if nid == self.node_id:
+                break
+            if t < ts or (t == ts and nid < node_id):
+                return False
+        return True
 
     def defer_reply(self, node_id):
-        self.deferred.append(node_id)
+        if node_id not in self.deferred:
+            self.deferred.append(node_id)
 
     def shutdown(self):
         self.running = False
@@ -239,11 +222,9 @@ class DistributedNode:
 
     def start(self):
         self.logger.info(f"Node {self.node_id} started on port {self.port}")
-        
         threading.Thread(target=self.run_server, daemon=True).start()
         threading.Thread(target=self.request_loop, daemon=True).start()
         threading.Thread(target=self.process_replies, daemon=True).start()
-        
         try:
             while self.running:
                 time.sleep(0.1)
@@ -255,9 +236,6 @@ if __name__ == "__main__":
     parser.add_argument('--id', type=int, required=True)
     parser.add_argument('--port', type=int, required=True)
     args = parser.parse_args()
-    
-    other_nodes = [('node{}'.format(i), 5000 + i) for i in range(1, 7)]
-    other_nodes = [n for n in other_nodes if n[1] != args.port]
-    
+    other_nodes = [(f'node{i}', 5000 + i) for i in range(1, 7) if 5000 + i != args.port]
     node = DistributedNode(args.id, args.port, other_nodes)
     node.start()
