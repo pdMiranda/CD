@@ -35,6 +35,7 @@ class DistributedNode:
         self.other_nodes = other_nodes
         self.logger = setup_logging(node_id)
         self.init_state()
+        self.cs_thread = None # Thread for CS processing
 
     def init_state(self):
         self.clock = 0
@@ -49,16 +50,21 @@ class DistributedNode:
         self.cs_start_time = 0
 
     def run_server(self):
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        with socket.socket() as s:
             s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             s.bind(('0.0.0.0', self.port))
+            s.settimeout(1)  # Timeout para não bloquear
             s.listen()
-            self.logger.info(f"Server listening on port {self.port}")
             
             while self.running:
                 try:
                     conn, addr = s.accept()
-                    threading.Thread(target=self.handle_connection, args=(conn, addr)).start()
+                    threading.Thread(
+                        target=self.handle_connection, 
+                        args=(conn, addr)
+                    ).start()
+                except socket.timeout:
+                    continue
                 except Exception as e:
                     self.logger.error(f"Server error: {e}")
                     break
@@ -137,27 +143,41 @@ class DistributedNode:
                     self.enter_cs()
 
     def enter_cs(self):
+        if self.in_cs:
+            return
+            
         self.in_cs = True
         self.cs_start_time = time.time()
         self.logger.info("=== ENTERING CRITICAL SECTION ===")
         
+        # Usa thread separada para a CS
+        self.cs_thread = threading.Thread(
+            target=self._execute_cs,
+            daemon=True
+        )
+        self.cs_thread.start()
+
+    def _execute_cs(self):
         try:
             with socket.socket() as s:
                 s.settimeout(2)
                 s.connect(('print_server', 5000))
                 s.sendall(f"ENTER:{self.node_id}".encode())
                 
-                response = s.recv(1024).decode()
-                if response != "ENTER_OK":
+                if s.recv(1024).decode() != "ENTER_OK":
                     raise Exception("Server denied CS access")
                 
                 self.logger.info("=== IN CRITICAL SECTION ===")
-                time.sleep(self.CS_DURATION)
                 
+                # Temporizador separado para não bloquear
+                start = time.time()
+                while time.time() - start < self.CS_DURATION:
+                    time.sleep(0.1)  # Permite que o nó continue operando
+                    
                 s.sendall(b"EXIT")
                 if s.recv(1024).decode() == "EXIT_OK":
                     self.logger.info("=== EXITING CRITICAL SECTION ===")
-                
+                    
         except Exception as e:
             self.logger.error(f"CS error: {e}")
         finally:

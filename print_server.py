@@ -32,24 +32,30 @@ class PrintServer:
     def handle_client(self, conn, addr):
         with conn:
             try:
+                conn.settimeout(10)  # Timeout generoso
                 data = conn.recv(1024).decode()
+                
                 if data.startswith("ENTER:"):
                     node_id = data.split(":")[1]
                     with self.lock:
                         if self.current_user:
                             conn.sendall(b"BUSY")
-                            self.logger.info(f"DENIED - Node {node_id} (CS occupied)")
+                            self.logger.info(f"DENIED - Node {node_id}")
                             return
                         
                         self.current_user = node_id
                         conn.sendall(b"ENTER_OK")
                         self.logger.info(f"ENTER - Node {node_id}")
                         
-                        exit_msg = conn.recv(1024).decode()
-                        if exit_msg == "EXIT":
+                        try:
+                            exit_msg = conn.recv(1024).decode()
+                            if exit_msg == "EXIT":
+                                self.current_user = None
+                                conn.sendall(b"EXIT_OK")
+                                self.logger.info(f"EXIT - Node {node_id}")
+                        except socket.timeout:
+                            self.logger.error(f"Timeout waiting for EXIT from Node {node_id}")
                             self.current_user = None
-                            conn.sendall(b"EXIT_OK")
-                            self.logger.info(f"EXIT - Node {node_id}")
                 
             except Exception as e:
                 self.logger.error(f"ERROR - {e}")
