@@ -150,7 +150,15 @@ class DistributedNode:
         self.cs_start_time = time.time()
         self.logger.info("=== ENTERING CRITICAL SECTION ===")
         
-        # Usa thread separada para a CS
+        # Timeout para garantir que não fique travado
+        def _cs_watchdog():
+            time.sleep(self.CS_DURATION + 2)  # Tempo extra
+            if self.in_cs:
+                self.logger.warning("CS watchdog triggered - forcing exit")
+                self.exit_cs()
+        
+        threading.Thread(target=_cs_watchdog, daemon=True).start()
+        
         self.cs_thread = threading.Thread(
             target=self._execute_cs,
             daemon=True
@@ -164,8 +172,10 @@ class DistributedNode:
                 s.connect(('print_server', 5000))
                 s.sendall(f"ENTER:{self.node_id}".encode())
                 
-                if s.recv(1024).decode() != "ENTER_OK":
-                    raise Exception("Server denied CS access")
+                response = s.recv(1024).decode()
+                if response != "ENTER_OK":
+                    self.logger.error(f"Server denied access: {response}")
+                    return  # Não prossegue para a CS
                 
                 self.logger.info("=== IN CRITICAL SECTION ===")
                 

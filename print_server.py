@@ -38,9 +38,8 @@ class PrintServer:
                 if data.startswith("ENTER:"):
                     node_id = data.split(":")[1]
                     with self.lock:
-                        if self.current_user:
-                            conn.sendall(b"BUSY")
-                            self.logger.info(f"DENIED - Node {node_id}")
+                        if self.current_user == node_id:
+                            conn.sendall(b"ALREADY_IN_CS")
                             return
                         
                         self.current_user = node_id
