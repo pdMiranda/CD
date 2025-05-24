@@ -1,61 +1,73 @@
 import socket
 import threading
+import time
 import logging
 import os
-import glob
+
+def setup_logging():
+    if not os.path.exists('logs'):
+        os.makedirs('logs')
+    
+    logger = logging.getLogger('PrintServer')
+    logger.setLevel(logging.INFO)
+    
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    
+    file_handler = logging.FileHandler('logs/print_server.log')
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
+    
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
+    logger.addHandler(console_handler)
+    
+    return logger
 
 class PrintServer:
-    def __init__(self, port=5000):
-        self.port = port
-        logging.basicConfig(
-            level=logging.INFO,
-            format='%(asctime)s - PrintServer - %(levelname)s - %(message)s'
-        )
-        self.logger = logging.getLogger()
-
-    def start(self):
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            s.bind(('0.0.0.0', self.port))
-            s.listen()
-            self.logger.info(f"Print server started on port {self.port}")
-            
-            while True:
-                conn, addr = s.accept()
-                threading.Thread(target=self.handle_client, args=(conn, addr)).start()
+    def __init__(self):
+        self.logger = setup_logging()
+        self.current_user = None
+        self.lock = threading.Lock()
 
     def handle_client(self, conn, addr):
         with conn:
             try:
                 data = conn.recv(1024).decode()
-                if data:
-                    self.logger.info(f"Node {data} accessed the shared resource")
+                if data.startswith("ENTER:"):
+                    node_id = data.split(":")[1]
+                    with self.lock:
+                        if self.current_user:
+                            conn.sendall(b"BUSY")
+                            self.logger.info(f"DENIED - Node {node_id} (CS occupied)")
+                            return
+                        
+                        self.current_user = node_id
+                        conn.sendall(b"ENTER_OK")
+                        self.logger.info(f"ENTER - Node {node_id}")
+                        
+                        exit_msg = conn.recv(1024).decode()
+                        if exit_msg == "EXIT":
+                            self.current_user = None
+                            conn.sendall(b"EXIT_OK")
+                            self.logger.info(f"EXIT - Node {node_id}")
+                
             except Exception as e:
-                self.logger.error(f"Error handling client: {e}")
-    
-    def setup_logging(node_id=None):
-        # Criar pasta de logs se não existir
-        if not os.path.exists('logs'):
-            os.makedirs('logs')
-        
-        # Configurar logging
-        logger = logging.getLogger('print_server' if node_id is None else f'node_{node_id}')
-        logger.setLevel(logging.INFO)
-        
-        # Formato do log
-        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-        
-        # Handler para arquivo (um por nó)
-        file_handler = logging.FileHandler(f'logs/{"print_server" if node_id is None else f"node_{node_id}"}.log')
-        file_handler.setFormatter(formatter)
-        logger.addHandler(file_handler)
-        
-        # Handler para console
-        console_handler = logging.StreamHandler()
-        console_handler.setFormatter(formatter)
-        logger.addHandler(console_handler)
-        
-        return logger
+                self.logger.error(f"ERROR - {e}")
+                with self.lock:
+                    if self.current_user:
+                        self.current_user = None
+
+    def start(self):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            s.bind(('0.0.0.0', 5000))
+            s.listen()
+            self.logger.info("Print server started on port 5000")
+            
+            while True:
+                conn, addr = s.accept()
+                threading.Thread(target=self.handle_client, args=(conn, addr)).start()
 
 if __name__ == "__main__":
-    PrintServer().start()
+    server = PrintServer()
+    server.start()
