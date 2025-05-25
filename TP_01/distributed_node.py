@@ -23,7 +23,7 @@ def setup_logging(node_id):
     return logger
 
 class DistributedNode:
-    CS_DURATION = 5
+    CS_DURATION = 10
 
     def __init__(self, node_id, port, other_nodes):
         self.node_id = node_id
