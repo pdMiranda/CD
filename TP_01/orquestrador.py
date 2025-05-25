@@ -76,7 +76,6 @@ class Orquestrador:
                             with self.lock:
                                 self.current_user = None
                                 self.logger.info(f"EXIT - Node {node_id}")
-                                self.notify_numbers_service("STOP")
                                 self.last_timestamp += 10
                             conn.sendall(b"EXIT_OK")
                     except socket.timeout:
