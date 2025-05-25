@@ -66,7 +66,7 @@ class NumberPrinter:
         with self.lock:
             last = self.sequence[-1] if self.sequence else self.current_node_time
             self.active = False
-            self.logger.info(f"Finished printing for Node {self.current_node}\n")
+            self.logger.info(f"Finished printing for Node {self.current_node}\n\n")
             try:
                 self.response_conn.sendall(f"DONE:{last}".encode())
                 self.response_conn.close()
