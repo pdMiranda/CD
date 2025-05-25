@@ -97,7 +97,7 @@ class NumberPrinter:
                     start_value = int(time.time())
 
                 self.response_conn = conn
-                response = self.start_sequence(node_id, start_value, start_value)
+                self.start_sequence(node_id, start_value, start_value)
                 return
 
             elif data == "STOP":
