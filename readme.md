@@ -43,9 +43,11 @@ docker-compose down && docker-compose up --build
 
 4. Os logs estarão disponíveis em:
 
+```bash
 ./logs/node_<ID>.log → logs de cada nó
 ./logs/orquestrador.log → logs do coordenador
 ./logs/print_service.log → logs do serviço de impressão
+```
 
 # Limpeza manual (opcional)
 ```bash
