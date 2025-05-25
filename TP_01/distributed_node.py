@@ -95,14 +95,16 @@ class DistributedNode:
 
     def request_loop(self):
         while self.running:
-            time.sleep(random.uniform(1, 3))
-            if random.random() > 0.5:
-                self.request_cs()
+            if not self.in_cs:
+                time.sleep(random.uniform(1, 3))
+                if random.random() > 0.5:
+                    self.request_cs()
 
     def request_cs(self):
         with self.lock:
             if self.requesting:
                 return  # já solicitando
+            
             self.clock += 1
             self.requesting = True
             self.awaiting_replies_from = {port - 5000 for _, port in self.other_nodes}

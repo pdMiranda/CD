@@ -54,13 +54,13 @@ class NumberPrinter:
             return f"STARTED:{self.sequence[-1]}"
 
     def print_server(self):
-        self.logger.info(f"Node {self.current_node} started printing numbers. | time: {self.current_node_time}")
+        self.logger.info(f"Node {self.current_node} started printing numbers. | time: {self.current_node_time} | k = {len(self.sequence)}")
 
         for num in self.sequence:
             with self.lock:
                 if not self.active:
                     break
-                self.logger.info(f"Node {self.current_node} >> {num} | +{num - self.current_node_time}")
+                self.logger.info(f"Node {self.current_node} >> {num} | {num - self.current_node_time}")
             time.sleep(0.5)
 
         with self.lock:
@@ -101,7 +101,7 @@ class NumberPrinter:
             s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             s.bind(('0.0.0.0', 5001))
             s.listen()
-            self.logger.info("Number printer service started on port 5001\n")
+            self.logger.info("Print Server service started\n")
 
             while True:
                 conn, _ = s.accept()

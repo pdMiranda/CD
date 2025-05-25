@@ -59,7 +59,7 @@ class Orquestrador:
                     with self.lock:
                         if self.current_user is not None:
                             self.logger.warning(f"CS conflict: Node {node_id} tried to enter but current user is {self.current_user}")
-                            conn.sendall(b"ALREADY_IN_CS")
+                            conn.sendall(b"SOMEONE_IS_IN_CS")
                             return
 
                         self.current_user = node_id
@@ -95,7 +95,7 @@ class Orquestrador:
             s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             s.bind(('0.0.0.0', 5000))
             s.listen()
-            self.logger.info("Print server started on port 5000")
+            self.logger.info("Orquestrador server started")
             while True:
                 conn, addr = s.accept()
                 threading.Thread(target=self.handle_client, args=(conn, addr), daemon=True).start()
