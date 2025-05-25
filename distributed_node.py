@@ -146,7 +146,7 @@ class DistributedNode:
         try:
             with socket.socket() as s:
                 s.settimeout(3)
-                s.connect(('print_server', 5000))
+                s.connect(('orquestrador', 5000))
                 s.sendall(f"ENTER:{self.node_id}".encode())
                 response = s.recv(1024).decode().strip()
                 if response != "ENTER_OK":

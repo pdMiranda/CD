@@ -23,82 +23,80 @@ def setup_logging():
 
     return logger
 
-class PrintServer:
+class NumberPrinter:
     def __init__(self):
         self.logger = setup_logging()
-        self.current_user = None
+        self.active = False
+        self.current_node = None
+        self.current_node_time = 0
+        self.sequence = []
+        self.thread = None
         self.lock = threading.Lock()
-        self.last_timestamp = 0
-        self.last_printed_number = 0
-        self.numbers_socket_lock = threading.Lock()
 
-    def notify_numbers_service(self, message):
-        with self.numbers_socket_lock:
-            try:
-                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                    s.settimeout(3)
-                    s.connect(("numbers_print", 5001))
-                    s.sendall(message.encode())
-                    if message.startswith("START"):
-                        response = s.recv(1024).decode().strip()
-                        if response.startswith("DONE"):
-                            _, last_num = response.split(":")
-                            self.last_printed_number = int(last_num)
-            except Exception as e:
-                self.logger.error(f"Failed to notify numbers service: {e}")
 
-    def handle_client(self, conn, addr):
+    def start_sequence(self, node_id, start_value, node_timestamp):
+        with self.lock:
+            if self.active:
+                self.logger.warning("Number printer already active.")
+                return f"STARTED:{start_value}"
+            self.active = True
+            self.current_node = node_id
+            self.current_node_time = node_timestamp
+            k = random.randint(1, 10)
+            self.sequence = list(range(start_value + 1, start_value + 1 + k))
+            self.thread = threading.Thread(target=self.print_server)
+            self.thread.start()
+            return f"STARTED:{self.sequence[-1]}"
+
+    def print_server(self):
+        self.logger.info(f"Node {self.current_node} started printing numbers. | time: {self.current_node_time}")
+        for num in self.sequence:
+            with self.lock:
+                if not self.active:
+                    break
+                self.logger.info(f"Node {self.current_node} >> {num} | {num - self.current_node_time}")
+            time.sleep(0.5)
+
+        with self.lock:
+            self.active = False
+            self.sequence = []
+
+    def stop(self):
+        with self.lock:
+            self.logger.info(f"Stopped printing for Node {self.current_node}\n")
+            self.active = False
+            self.current_node = None
+
+    def handle_client(self, conn):
         with conn:
             try:
-                conn.settimeout(10)
                 data = conn.recv(1024).decode().strip()
-
-                if data.startswith("ENTER:"):
-                    node_id = data.split(":")[1].strip()
-                    with self.lock:
-                        if self.current_user is not None:
-                            self.logger.warning(f"CS conflict: Node {node_id} tried to enter but current user is {self.current_user}")
-                            conn.sendall(b"ALREADY_IN_CS")
-                            return
-
-                        self.current_user = node_id
-                        conn.sendall(b"ENTER_OK")
-                        self.logger.info(f"ENTER - Node {node_id}")
-
-                        self.notify_numbers_service(f"START:{node_id}:{self.last_printed_number}")
-
-                    try:
-                        exit_msg = conn.recv(1024).decode().strip()
-                        if exit_msg == "EXIT":
-                            with self.lock:
-                                self.current_user = None
-                                self.logger.info(f"EXIT - Node {node_id}")
-                                self.notify_numbers_service("STOP")
-                                self.last_timestamp += 10
-                            conn.sendall(b"EXIT_OK")
-                    except socket.timeout:
-                        self.logger.error(f"Timeout waiting for EXIT from Node {node_id}")
-                        with self.lock:
-                            self.current_user = None
-                            self.notify_numbers_service("STOP")
-
+                if data.startswith("START:"):
+                    parts = data.split(":")
+                    if len(parts) == 4:
+                        _, node_id, _, node_timestamp = parts
+                        response = self.start_sequence(node_id, int(node_timestamp), int(node_timestamp))
+                    else:
+                        _, node_id, _ = parts
+                        now = int(time.time())
+                        response = self.start_sequence(node_id, now, now)
+                    conn.sendall(response.encode())
+                elif data == "STOP":
+                    self.stop()
+                    conn.sendall(b"STOPPED")
             except Exception as e:
-                self.logger.error(f"ERROR - {e}")
-                with self.lock:
-                    if self.current_user:
-                        self.current_user = None
-                        self.notify_numbers_service("STOP")
+                self.logger.error(f"Error: {e}")
 
     def start(self):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            s.bind(('0.0.0.0', 5000))
+            s.bind(('0.0.0.0', 5001))
             s.listen()
-            self.logger.info("Print server started on port 5000")
+            self.logger.info("Number printer service started on port 5001\n")
             while True:
-                conn, addr = s.accept()
-                threading.Thread(target=self.handle_client, args=(conn, addr), daemon=True).start()
+                conn, _ = s.accept()
+                threading.Thread(target=self.handle_client, args=(conn,), daemon=True).start()
 
 if __name__ == "__main__":
-    server = PrintServer()
+    server = NumberPrinter()
     server.start()

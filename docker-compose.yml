@@ -6,27 +6,27 @@ x-common: &default-config
   volumes:
     - ./logs:/app/logs
   depends_on:
-    - print_server
+    - orquestrador
 
 services:
+  orquestrador:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: orquestrador
+    command: bash -c "rm -rf logs/* && python3 orquestrador.py"
+    user: "1000:1000"
+    volumes:
+      - ./logs:/app/logs
+    depends_on:
+      - print_server
+
   print_server:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: print_server
-    command: bash -c "rm -rf logs/* && python3 print_server.py"
-    user: "1000:1000"
-    volumes:
-      - ./logs:/app/logs
-    depends_on:
-      - numbers_print
-
-  numbers_print:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: numbers_print
-    command: python3 numbers_print.py
+    command: python3 print_server.py
     user: "1000:1000"
     volumes:
       - ./logs:/app/logs
