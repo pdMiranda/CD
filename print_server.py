@@ -7,16 +7,18 @@ import random
 
 def setup_logging():
     if not os.path.exists('logs'):
-        os.makedirs('logs')
-    
-    logger = logging.getLogger('PrintServer')
+        os.makedirs('logs', exist_ok=True) 
+
+    logger = logging.getLogger('PrintService') 
     logger.setLevel(logging.INFO)
 
     if not logger.handlers:
         formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-        file_handler = logging.FileHandler('logs/print_server.log')
+
+        file_handler = logging.FileHandler('logs/print_service.log')
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
+
         console_handler = logging.StreamHandler()
         console_handler.setFormatter(formatter)
         logger.addHandler(console_handler)
@@ -33,28 +35,32 @@ class NumberPrinter:
         self.thread = None
         self.lock = threading.Lock()
 
-
     def start_sequence(self, node_id, start_value, node_timestamp):
         with self.lock:
             if self.active:
                 self.logger.warning("Number printer already active.")
                 return f"STARTED:{start_value}"
+
             self.active = True
             self.current_node = node_id
             self.current_node_time = node_timestamp
+
             k = random.randint(1, 10)
             self.sequence = list(range(start_value + 1, start_value + 1 + k))
+
             self.thread = threading.Thread(target=self.print_server)
             self.thread.start()
+
             return f"STARTED:{self.sequence[-1]}"
 
     def print_server(self):
         self.logger.info(f"Node {self.current_node} started printing numbers. | time: {self.current_node_time}")
+
         for num in self.sequence:
             with self.lock:
                 if not self.active:
                     break
-                self.logger.info(f"Node {self.current_node} >> {num} | {num - self.current_node_time}")
+                self.logger.info(f"Node {self.current_node} >> {num} | +{num - self.current_node_time}")
             time.sleep(0.5)
 
         with self.lock:
@@ -71,6 +77,7 @@ class NumberPrinter:
         with conn:
             try:
                 data = conn.recv(1024).decode().strip()
+
                 if data.startswith("START:"):
                     parts = data.split(":")
                     if len(parts) == 4:
@@ -81,9 +88,11 @@ class NumberPrinter:
                         now = int(time.time())
                         response = self.start_sequence(node_id, now, now)
                     conn.sendall(response.encode())
+
                 elif data == "STOP":
                     self.stop()
                     conn.sendall(b"STOPPED")
+
             except Exception as e:
                 self.logger.error(f"Error: {e}")
 
@@ -93,6 +102,7 @@ class NumberPrinter:
             s.bind(('0.0.0.0', 5001))
             s.listen()
             self.logger.info("Number printer service started on port 5001\n")
+
             while True:
                 conn, _ = s.accept()
                 threading.Thread(target=self.handle_client, args=(conn,), daemon=True).start()

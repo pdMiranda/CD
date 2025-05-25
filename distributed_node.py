@@ -172,7 +172,7 @@ class DistributedNode:
             self.requesting = False
             self.awaiting_replies_from.clear()
             self.request_queue = [r for r in self.request_queue if r[1] != self.node_id]
-            self.logger.info(f"Time spent in CS: {time.time() - self.cs_start_time:.2f}s")
+            self.logger.info(f"Time spent in CS: {time.time() - self.cs_start_time}s")
             self.logger.info("=== LEFT CRITICAL SECTION ===")
             deferred = list(self.deferred)
             self.deferred.clear()

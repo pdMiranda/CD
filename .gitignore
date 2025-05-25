@@ -1,7 +1,2 @@
 logs/
-__pycache__/
-*.pyc
-*.log
-.env
-.vscode/
-.DS_Store
+!logs/*.log

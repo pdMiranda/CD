@@ -1,35 +1,39 @@
 x-common: &default-config
+  privileged: true
   build:
     context: .
     dockerfile: Dockerfile
-  user: "1000:1000"
+  user: "root" 
   volumes:
     - ./logs:/app/logs
   depends_on:
     - orquestrador
 
 services:
-  orquestrador:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: orquestrador
-    command: bash -c "rm -rf logs/* && python3 orquestrador.py"
-    user: "1000:1000"
-    volumes:
-      - ./logs:/app/logs
-    depends_on:
-      - print_server
 
   print_server:
+    privileged: true
     build:
       context: .
       dockerfile: Dockerfile
     container_name: print_server
-    command: python3 print_server.py
-    user: "1000:1000"
+    command: bash -c "rm -rf /app/logs/* && mkdir -p /app/logs && chmod 777 /app/logs && python3 print_server.py"
+    user: "root" 
+    volumes:
+      -  ./logs:/app/logs:rw
+
+  orquestrador:
+    privileged: true
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: orquestrador
+    command: python3 orquestrador.py
+    user: "root" 
     volumes:
       - ./logs:/app/logs
+    depends_on:
+      - print_server
 
   node1:
     <<: *default-config
@@ -60,3 +64,7 @@ services:
     <<: *default-config
     container_name: node6
     command: python3 distributed_node.py --id 6 --port 5006
+
+networks:
+  app-network:
+    driver: bridge
