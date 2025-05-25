@@ -35,7 +35,7 @@ class Orquestrador:
         with self.numbers_socket_lock:
             try:
                 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                    s.settimeout(3)
+                    s.settimeout(10)
                     s.connect(("print_server", 5001))
                     s.sendall(message.encode())
                     if message.startswith("START"):
@@ -45,6 +45,7 @@ class Orquestrador:
                             self.last_printed_number = int(last_num)
             except Exception as e:
                 self.logger.error(f"Failed to notify numbers service: {e}")
+
 
     def handle_client(self, conn, addr):
         with conn:
@@ -59,14 +60,15 @@ class Orquestrador:
                     with self.lock:
                         if self.current_user is not None:
                             self.logger.warning(f"CS conflict: Node {node_id} tried to enter but current user is {self.current_user}")
-                            conn.sendall(b"SOMEONE_IS_IN_CS")
+                            msg = f"{self.current_user} is in CS".encode()
+                            conn.sendall(msg)
                             return
 
                         self.current_user = node_id
-                        conn.sendall(b"ENTER_OK")
                         self.logger.info(f"ENTER - Node {node_id}")
 
                         self.notify_numbers_service(f"START:{node_id}:{self.last_printed_number}:{node_clock}")
+                        conn.sendall(b"ENTER_OK")
 
                     try:
                         exit_msg = conn.recv(1024).decode().strip()

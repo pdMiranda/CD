@@ -64,8 +64,18 @@ class NumberPrinter:
             time.sleep(0.5)
 
         with self.lock:
+            last = self.sequence[-1] if self.sequence else self.current_node_time
             self.active = False
-            self.sequence = []
+            self.logger.info(f"Finished printing for Node {self.current_node}")
+            try:
+                self.response_conn.sendall(f"DONE:{last}".encode())
+                self.response_conn.close()
+            except Exception as e:
+                self.logger.error(f"Failed to send DONE message: {e}")
+            finally:
+                self.sequence = []
+                self.current_node = None
+
 
     def stop(self):
         with self.lock:
@@ -74,27 +84,30 @@ class NumberPrinter:
             self.current_node = None
 
     def handle_client(self, conn):
-        with conn:
-            try:
-                data = conn.recv(1024).decode().strip()
+        try:
+            data = conn.recv(1024).decode().strip()
 
-                if data.startswith("START:"):
-                    parts = data.split(":")
-                    if len(parts) == 4:
-                        _, node_id, _, node_timestamp = parts
-                        response = self.start_sequence(node_id, int(node_timestamp), int(node_timestamp))
-                    else:
-                        _, node_id, _ = parts
-                        now = int(time.time())
-                        response = self.start_sequence(node_id, now, now)
-                    conn.sendall(response.encode())
+            if data.startswith("START:"):
+                parts = data.split(":")
+                if len(parts) == 4:
+                    _, node_id, _, node_timestamp = parts
+                    start_value = int(node_timestamp)
+                else:
+                    _, node_id, _ = parts
+                    start_value = int(time.time())
 
-                elif data == "STOP":
-                    self.stop()
-                    conn.sendall(b"STOPPED")
+                self.response_conn = conn
+                response = self.start_sequence(node_id, start_value, start_value)
+                return
 
-            except Exception as e:
-                self.logger.error(f"Error: {e}")
+            elif data == "STOP":
+                self.stop()
+                conn.sendall(b"STOPPED")
+                conn.close()
+
+        except Exception as e:
+            self.logger.error(f"Error: {e}")
+
 
     def start(self):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:

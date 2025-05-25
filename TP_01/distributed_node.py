@@ -147,7 +147,7 @@ class DistributedNode:
     def _execute_cs(self):
         try:
             with socket.socket() as s:
-                s.settimeout(3)
+                s.settimeout(15)
                 s.connect(('orquestrador', 5000))
                 s.sendall(f"ENTER:{self.node_id}:{self.clock}".encode())
                 response = s.recv(1024).decode().strip()
@@ -155,9 +155,7 @@ class DistributedNode:
                     self.logger.error(f"Server denied access: {response}")
                     return
                 self.logger.info("=== IN CRITICAL SECTION ===")
-                start = time.time()
-                while time.time() - start < self.CS_DURATION:
-                    time.sleep(0.1)
+                
                 s.sendall(b"EXIT")
                 if s.recv(1024).decode().strip() == "EXIT_OK":
                     self.logger.info("=== EXITING CRITICAL SECTION ===")
