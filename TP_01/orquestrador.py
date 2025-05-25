@@ -53,7 +53,9 @@ class Orquestrador:
                 data = conn.recv(1024).decode().strip()
 
                 if data.startswith("ENTER:"):
-                    node_id = data.split(":")[1].strip()
+                    parts = data.split(":")
+                    node_id = parts[1].strip()
+                    node_clock = int(parts[2]) if len(parts) > 2 else 0
                     with self.lock:
                         if self.current_user is not None:
                             self.logger.warning(f"CS conflict: Node {node_id} tried to enter but current user is {self.current_user}")
@@ -64,7 +66,7 @@ class Orquestrador:
                         conn.sendall(b"ENTER_OK")
                         self.logger.info(f"ENTER - Node {node_id}")
 
-                        self.notify_numbers_service(f"START:{node_id}:{self.last_printed_number}")
+                        self.notify_numbers_service(f"START:{node_id}:{self.last_printed_number}:{node_clock}")
 
                     try:
                         exit_msg = conn.recv(1024).decode().strip()

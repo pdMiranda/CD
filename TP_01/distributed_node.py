@@ -147,7 +147,7 @@ class DistributedNode:
             with socket.socket() as s:
                 s.settimeout(3)
                 s.connect(('orquestrador', 5000))
-                s.sendall(f"ENTER:{self.node_id}".encode())
+                s.sendall(f"ENTER:{self.node_id}:{self.clock}".encode())
                 response = s.recv(1024).decode().strip()
                 if response != "ENTER_OK":
                     self.logger.error(f"Server denied access: {response}")
