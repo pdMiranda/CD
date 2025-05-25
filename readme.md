@@ -12,7 +12,7 @@ Este projeto implementa um sistema de exclusão mútua entre múltiplos nós que
 - Exclusão mútua garantida entre os nós.
 - Impressão de uma sequência de `k` números aleatórios (`1 ≤ k ≤ 10`) por nó, com intervalo de 0.5s entre cada número.
 - Logs separados e detalhados para cada nó, o orquestrador e o serviço de impressão.
-- Limpeza automática da pasta `logs/` a cada execução do orquestrador.
+- Limpeza automática da pasta `logs/` a cada execução.
 
 ## Requisitos
 - Docker e Docker Compose instalados.
